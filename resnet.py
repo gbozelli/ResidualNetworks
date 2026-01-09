@@ -165,6 +165,36 @@ class WindowingLayer(layers.Layer):
         # This tells the Dense layer that the last dimension is 4
         return (4*self.n,None)
 
+import numpy as np
+from tensorflow.keras import layers, Model
+from sklearn import preprocessing
+
+x = np.array(real_data_120[8]) 
+y = np.array(exp_data_120[8])
+
+scaler = preprocessing.StandardScaler()
+
+x = scaler.fit_transform(x.T)
+y = scaler.transform(y.T)
+
+split_idx = 180000
+X_train, X_test = x[:split_idx], x[split_idx:]
+y_train, y_test = y[:split_idx], y[split_idx:]
+
+inputs = layers.Input(shape=(4,)) 
+mlp_layer = layers.Dense(64, activation='relu')(inputs) 
+mlp_output = layers.Dense(4, activation='linear')(mlp_layer)
+
+model = Model(inputs=inputs, outputs=mlp_output, name="Simple_MLP")
+model.compile(optimizer='adam', loss='mse')
+
+
+model.fit(X_train, y_train, epochs=5)
+
+print("Calculating BER...")
+
+print(BER(X_test, y_test, model))
+
 inputs = layers.Input(shape=(None,), batch_size=4)
 windowing = WindowingLayer(n=11)(inputs)
 mlp_layer = layers.Dense(64, activation='relu')(windowing)
