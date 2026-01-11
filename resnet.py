@@ -201,6 +201,77 @@ mlp_layer = layers.Dense(64, activation='relu')(windowing)
 mlp_output = layers.Dense(4, activation='linear')(mlp_layer)
 outputs = layers.Add()([mlp_output, inputs])
 model = Model(inputs=inputs, outputs=outputs, name="Simple_ResNet_MLP")
-
-# Display the architecture
 model.summary()
+
+#Simple ResNet model using data manipulation
+
+import numpy as np
+from tensorflow.keras import layers, Model
+from sklearn import preprocessing
+
+def BER(X_test, Y_test, x_test_c, clf):
+  Y_test_hat = clf.predict(X_test)
+  Y_test_hat +=  x_test_c
+  aux = 4*np.clip(np.round((Y_test[:,0]-1)/2)+2,0,3)+np.clip(np.round((Y_test[:,1]-1)/2)+2,0,3)
+  sym_X_test = aux.astype(int)
+  # Y polarization
+  aux = 4*np.clip(np.round((Y_test[:,2]-1)/2)+2,0,3)+np.clip(np.round((Y_test[:,3]-1)/2)+2,0,3)
+  sym_Y_test = aux.astype(int)
+  # Detection of the real symbols with multiple symbol
+  # X polarization
+  aux = 4*np.clip(np.round((Y_test_hat[:,0]-1)/2)+2,0,3)+np.clip(np.round((Y_test_hat[:,1]-1)/2)+2,0,3)
+  sym_X_test_Multisym = aux.astype(int)
+  # Y polarization
+  aux = 4*np.clip(np.round((Y_test_hat[:,2]-1)/2)+2,0,3)+np.clip(np.round((Y_test_hat[:,3]-1)/2)+2,0,3)
+  sym_Y_test_Multisym = aux.astype(int)
+  # Corrected to calculate BER instead of SER
+  BER = (sum(sym_X_test!=sym_X_test_Multisym)/len(sym_X_test)+sum(sym_Y_test!=sym_Y_test_Multisym)/len(sym_Y_test))/8
+  return BER
+
+def Windowing(x, y, n):
+  x_mult = []
+  n_elem = len(x[0])-n
+  for i in range(0,n):
+    x_mult.append(x[0][i:n_elem+i])
+    x_mult.append(x[1][i:n_elem+i])
+    x_mult.append(x[2][i:n_elem+i])
+    x_mult.append(x[3][i:n_elem+i])
+  y = y[:,int(n/2):n_elem+int(n/2)]
+  x_cent = x[:,int(n/2):n_elem+int(n/2)]
+  return np.array(x_cent), np.array(x_mult), np.array(y)
+
+x = np.array(real_data_120[8]) 
+y = np.array(exp_data_120[8])
+
+scaler = preprocessing.StandardScaler()
+
+x = scaler.fit_transform(x.T).T
+
+x_cent, x_w, y_cent = Windowing(x, y, 3)
+
+y_residual = (y_cent - x_cent).T
+
+x_w = x_w.T
+y = y.T
+y_cent = y_cent.T
+x_cent = x_cent.T
+
+split_idx = 180000
+X_train, X_test = x_w[:split_idx], x_w[split_idx:]
+y_train, y_test = y_residual[:split_idx], y_residual[split_idx:]
+y_train_s, y_test_s = y_cent[:split_idx], y_cent[split_idx:]
+x_train_s, x_test_s = x_cent[:split_idx], x_cent[split_idx:]
+
+inputs = layers.Input(shape=(4*3,)) 
+mlp_layer = layers.Dense(64, activation='relu')(inputs) 
+mlp_output = layers.Dense(4, activation='linear')(mlp_layer)
+
+model = Model(inputs=inputs, outputs=mlp_output, name="Simple_Resnet_MLP")
+model.compile(optimizer='adam', loss='mse')
+
+model.fit(X_train, y_train, epochs=5)
+
+print("Calculating BER...")
+print('X_test:', np.shape(X_test))
+print('y_test_s:', np.shape(y_test_s))
+print('BER:', BER(X_test, y_test_s, x_test_s, model))
