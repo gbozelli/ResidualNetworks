@@ -275,3 +275,160 @@ print("Calculating BER...")
 print('X_test:', np.shape(X_test))
 print('y_test_s:', np.shape(y_test_s))
 print('BER:', BER(X_test, y_test_s, x_test_s, model))
+
+#example with comparison neetwen normal and resnet mlp
+
+import numpy as np
+from sklearn import preprocessing
+from sklearn.neural_network import MLPRegressor
+import matplotlib.pyplot as plt
+
+# ==========================================================
+# Funções de BER e Janelamento (Fornecidas)
+# ==========================================================
+
+def BER_resnet(X_test, Y_test, x_test_c, clf):
+    """
+    Calcula BER para o modelo ResNet.
+    O modelo prevê o resíduo, que é somado à entrada central (x_test_c).
+    """
+    Y_test_residual_hat = clf.predict(X_test)
+
+    Y_test_hat = Y_test_residual_hat + x_test_c
+    
+
+    aux = 4*np.clip(np.round((Y_test[:,0]-1)/2)+2,0,3)+np.clip(np.round((Y_test[:,1]-1)/2)+2,0,3)
+    sym_X_test = aux.astype(int)
+    aux = 4*np.clip(np.round((Y_test[:,2]-1)/2)+2,0,3)+np.clip(np.round((Y_test[:,3]-1)/2)+2,0,3)
+    sym_Y_test = aux.astype(int)
+    
+    # Detecção
+    aux = 4*np.clip(np.round((Y_test_hat[:,0]-1)/2)+2,0,3)+np.clip(np.round((Y_test_hat[:,1]-1)/2)+2,0,3)
+    sym_X_test_Multisym = aux.astype(int)
+    aux = 4*np.clip(np.round((Y_test_hat[:,2]-1)/2)+2,0,3)+np.clip(np.round((Y_test_hat[:,3]-1)/2)+2,0,3)
+    sym_Y_test_Multisym = aux.astype(int)
+    
+    BER = (sum(sym_X_test!=sym_X_test_Multisym)/len(sym_X_test)+sum(sym_Y_test!=sym_Y_test_Multisym)/len(sym_Y_test))/8
+    return BER
+
+def BER_normal(X_test, Y_test, clf):
+    """
+    Calcula BER para o modelo Normal.
+    O modelo prevê Y diretamente.
+    """
+    Y_test_hat = clf.predict(X_test)
+    
+    aux = 4*np.clip(np.round((Y_test[:,0]-1)/2)+2,0,3)+np.clip(np.round((Y_test[:,1]-1)/2)+2,0,3)
+    sym_X_test = aux.astype(int)
+    aux = 4*np.clip(np.round((Y_test[:,2]-1)/2)+2,0,3)+np.clip(np.round((Y_test[:,3]-1)/2)+2,0,3)
+    sym_Y_test = aux.astype(int)
+    
+    aux = 4*np.clip(np.round((Y_test_hat[:,0]-1)/2)+2,0,3)+np.clip(np.round((Y_test_hat[:,1]-1)/2)+2,0,3)
+    sym_X_test_Multisym = aux.astype(int)
+    aux = 4*np.clip(np.round((Y_test_hat[:,2]-1)/2)+2,0,3)+np.clip(np.round((Y_test_hat[:,3]-1)/2)+2,0,3)
+    sym_Y_test_Multisym = aux.astype(int)
+    
+    BER = (sum(sym_X_test!=sym_X_test_Multisym)/len(sym_X_test)+sum(sym_Y_test!=sym_Y_test_Multisym)/len(sym_Y_test))/8
+    return BER
+
+def Windowing_resnet(x, y, n):
+    x_mult = []
+    n_elem = len(x[0])-n
+    for i in range(0,n):
+        x_mult.append(x[0][i:n_elem+i])
+        x_mult.append(x[1][i:n_elem+i])
+        x_mult.append(x[2][i:n_elem+i])
+        x_mult.append(x[3][i:n_elem+i])
+    y = y[:,int(n/2):n_elem+int(n/2)]
+    x_cent = x[:,int(n/2):n_elem+int(n/2)]
+    return np.array(x_cent), np.array(x_mult), np.array(y)
+
+def Windowing_normal(x, y, n):
+    x_mult = []
+    n_elem = len(x[0])-n
+    for i in range(0,n):
+        x_mult.append(x[0][i:n_elem+i])
+        x_mult.append(x[1][i:n_elem+i])
+        x_mult.append(x[2][i:n_elem+i])
+        x_mult.append(x[3][i:n_elem+i])
+    y = y[:,int(n/2):n_elem+int(n/2)]
+    return np.array(x_mult), np.array(y)
+
+# ==========================================================
+
+dbm = 11
+neurons = 512
+n_sym = 7
+split_ratio = 0.7
+
+x = np.array(real_data_120[dbm]) 
+y = np.array(exp_data_120[dbm])
+
+x_cent, x_w_res, y_cent = Windowing_resnet(x, y, n_sym)
+y_residual = (y_cent - x_cent).T
+x_w_res = x_w_res.T
+y_cent = y_cent.T
+x_cent = x_cent.T
+
+
+scaler_res = preprocessing.StandardScaler()
+x_w_res = scaler_res.fit_transform(x_w_res)
+
+split_idx = int(len(x_w_res) * split_ratio)
+
+
+X_train_res, X_test_res = x_w_res[:split_idx], x_w_res[split_idx:]
+y_train_res, y_test_res = y_residual[:split_idx], y_residual[split_idx:] 
+
+y_test_s_res = y_cent[split_idx:] 
+x_test_s_res = x_cent[split_idx:] 
+
+
+
+x_w_norm, y_norm = Windowing_normal(x, y, n_sym)
+x_w_norm = x_w_norm.T
+y_norm = y_norm.T
+
+scaler_norm = preprocessing.StandardScaler()
+x_w_norm = scaler_norm.fit_transform(x_w_norm)
+
+X_train_norm, X_test_norm = x_w_norm[:split_idx], x_w_norm[split_idx:]
+y_train_norm, y_test_norm = y_norm[:split_idx], y_norm[split_idx:] # Alvo: Símbolo Real
+
+mlp_resnet = MLPRegressor(hidden_layer_sizes=(neurons,), activation='relu', solver='adam', 
+                          learning_rate_init=0.001, random_state=42)
+
+mlp_normal = MLPRegressor(hidden_layer_sizes=(neurons,), activation='relu', solver='adam', 
+                          learning_rate_init=0.001, random_state=42)
+
+epochs = 100
+
+ber_history_res = []
+ber_history_norm = []
+
+print(f"{'Epoch':<6} | {'BER ResNet':<12} | {'BER Normal':<12}")
+print("-" * 36)
+
+for epoch in range(epochs):
+    
+    mlp_resnet.partial_fit(X_train_res, y_train_res)
+    ber_res = BER_resnet(X_test_res, y_test_s_res, x_test_s_res, mlp_resnet)
+    ber_history_res.append(ber_res)
+    
+    mlp_normal.partial_fit(X_train_norm, y_train_norm)
+    ber_norm = BER_normal(X_test_norm, y_test_norm, mlp_normal)
+    ber_history_norm.append(ber_norm)
+    
+    print(f"{epoch+1:<6} | {ber_res:.7f}     | {ber_norm:.7f}")
+
+plt.figure(figsize=(10, 6))
+plt.plot(range(1, epochs + 1), ber_history_res, label='ResNet MLP', marker='o')
+plt.plot(range(1, epochs + 1), ber_history_norm, label='Normal MLP', marker='o')
+plt.xlabel('Iteração')
+plt.ylabel('Bit Error Ratio (BER)')
+plt.title('Comparação de Convergência de BER: ResNet vs Normal')
+plt.grid(True)
+plt.legend()
+plt.yscale('log') 
+plt.savefig("comparacao_ber.pdf", format='pdf', bbox_inches='tight')
+plt.show()
