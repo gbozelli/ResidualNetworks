@@ -1,7 +1,7 @@
 # Residual Neural Network for Signal Compensation in Optical Communications
 
 ## Overview
-This project evaluates the performance of Machine Learning (ML) architectures—specifically Multi-Layer Perceptrons (MLP) and 1D Convolutional Neural Networks (CNN)—for the mitigation of non-linear impairments in optical fiber systems. The study focuses on a comparative analysis between a **Residual Learning (ResNet)** framework and a **Direct Mapping (Normal)** framework across various Signal-to-Noise Ratio (SNR) scenarios, measured in dBm.
+This project evaluates the performance of Machine Learning (ML) architectures—specifically Multi-Layer Perceptrons (MLP) and 1D Convolutional Neural Networks (WIP) for the mitigation of non-linear impairments in optical fiber systems. The study focuses on a comparative analysis between a **Residual Learning (ResNet)** framework and a **Direct Mapping (Normal)** framework across various Signal-to-Noise Ratio (SNR) scenarios, measured in dBm.
 
 ## Methodology
 
