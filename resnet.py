@@ -432,3 +432,163 @@ plt.legend()
 plt.yscale('log') 
 plt.savefig("comparacao_ber.pdf", format='pdf', bbox_inches='tight')
 plt.show()
+
+#Test with multiple values
+
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn import preprocessing
+from sklearn.neural_network import MLPRegressor
+
+def BER_resnet(X_test, Y_test, x_test_c, clf):
+    """
+    Calcula BER para o modelo ResNet.
+    O modelo prevê o resíduo, que é somado à entrada central (x_test_c).
+    """
+    Y_test_residual_hat = clf.predict(X_test)
+
+    Y_test_hat = Y_test_residual_hat + x_test_c
+    
+
+    aux = 4*np.clip(np.round((Y_test[:,0]-1)/2)+2,0,3)+np.clip(np.round((Y_test[:,1]-1)/2)+2,0,3)
+    sym_X_test = aux.astype(int)
+    aux = 4*np.clip(np.round((Y_test[:,2]-1)/2)+2,0,3)+np.clip(np.round((Y_test[:,3]-1)/2)+2,0,3)
+    sym_Y_test = aux.astype(int)
+    
+    # Detecção
+    aux = 4*np.clip(np.round((Y_test_hat[:,0]-1)/2)+2,0,3)+np.clip(np.round((Y_test_hat[:,1]-1)/2)+2,0,3)
+    sym_X_test_Multisym = aux.astype(int)
+    aux = 4*np.clip(np.round((Y_test_hat[:,2]-1)/2)+2,0,3)+np.clip(np.round((Y_test_hat[:,3]-1)/2)+2,0,3)
+    sym_Y_test_Multisym = aux.astype(int)
+    
+    BER = (sum(sym_X_test!=sym_X_test_Multisym)/len(sym_X_test)+sum(sym_Y_test!=sym_Y_test_Multisym)/len(sym_Y_test))/8
+    return BER
+
+def BER_normal(X_test, Y_test, clf):
+    """
+    Calcula BER para o modelo Normal.
+    O modelo prevê Y diretamente.
+    """
+    Y_test_hat = clf.predict(X_test)
+    
+    aux = 4*np.clip(np.round((Y_test[:,0]-1)/2)+2,0,3)+np.clip(np.round((Y_test[:,1]-1)/2)+2,0,3)
+    sym_X_test = aux.astype(int)
+    aux = 4*np.clip(np.round((Y_test[:,2]-1)/2)+2,0,3)+np.clip(np.round((Y_test[:,3]-1)/2)+2,0,3)
+    sym_Y_test = aux.astype(int)
+    
+    aux = 4*np.clip(np.round((Y_test_hat[:,0]-1)/2)+2,0,3)+np.clip(np.round((Y_test_hat[:,1]-1)/2)+2,0,3)
+    sym_X_test_Multisym = aux.astype(int)
+    aux = 4*np.clip(np.round((Y_test_hat[:,2]-1)/2)+2,0,3)+np.clip(np.round((Y_test_hat[:,3]-1)/2)+2,0,3)
+    sym_Y_test_Multisym = aux.astype(int)
+    
+    BER = (sum(sym_X_test!=sym_X_test_Multisym)/len(sym_X_test)+sum(sym_Y_test!=sym_Y_test_Multisym)/len(sym_Y_test))/8
+    return BER
+
+def Windowing_resnet(x, y, n):
+    x_mult = []
+    n_elem = len(x[0])-n
+    for i in range(0,n):
+        x_mult.append(x[0][i:n_elem+i])
+        x_mult.append(x[1][i:n_elem+i])
+        x_mult.append(x[2][i:n_elem+i])
+        x_mult.append(x[3][i:n_elem+i])
+    y = y[:,int(n/2):n_elem+int(n/2)]
+    x_cent = x[:,int(n/2):n_elem+int(n/2)]
+    return np.array(x_cent), np.array(x_mult), np.array(y)
+
+def Windowing_normal(x, y, n):
+    x_mult = []
+    n_elem = len(x[0])-n
+    for i in range(0,n):
+        x_mult.append(x[0][i:n_elem+i])
+        x_mult.append(x[1][i:n_elem+i])
+        x_mult.append(x[2][i:n_elem+i])
+        x_mult.append(x[3][i:n_elem+i])
+    y = y[:,int(n/2):n_elem+int(n/2)]
+    return np.array(x_mult), np.array(y)
+
+
+
+dbm_list = [9, 10, 11]
+neurons_list = [25, 50, 75, 100]
+nsym_list = [1, 3, 5, 7]
+epochs = 70 
+split_ratio = 0.8
+
+final_results = {}
+
+for dbm in dbm_list:
+    print(f"\n{'='*20} Iniciando DBM: {dbm} {'='*20}")
+    
+  
+    x_raw = np.array(real_data_120[dbm])
+    y_raw = np.array(exp_data_120[dbm])
+    
+    for n_sym in nsym_list:
+        for neurons in neurons_list:
+            print(f"Testando: n_sym={n_sym}, neurônios={neurons}...")
+
+
+            x_cent, x_w_res, y_cent = Windowing_resnet(x_raw, y_raw, n_sym)
+            y_residual = (y_cent - x_cent).T
+            X_res_flat = x_w_res.T
+            
+            scaler_res = preprocessing.StandardScaler()
+            X_res_scaled = scaler_res.fit_transform(X_res_flat)
+            
+            split_idx = int(len(X_res_scaled) * split_ratio)
+            X_train_res, X_test_res = X_res_scaled[:split_idx], X_res_scaled[split_idx:]
+            y_train_res = y_residual[:split_idx]
+            
+            y_test_s_res = y_cent.T[split_idx:]
+            x_test_s_res = x_cent.T[split_idx:]
+
+
+            x_w_norm, y_norm = Windowing(x_raw, y_raw, n_sym)
+            X_norm_flat = x_w_norm.T
+            y_norm_flat = y_norm.T
+            
+            scaler_norm = preprocessing.StandardScaler()
+            X_norm_scaled = scaler_norm.fit_transform(X_norm_flat)
+            
+            X_train_norm, X_test_norm = X_norm_scaled[:split_idx], X_norm_scaled[split_idx:]
+            y_train_norm = y_norm_flat[:split_idx]
+            y_test_norm = y_norm_flat[split_idx:]
+
+  
+            mlp_res = MLPRegressor(hidden_layer_sizes=(neurons,), random_state=42, max_iter=1)
+            mlp_norm = MLPRegressor(hidden_layer_sizes=(neurons,), random_state=42, max_iter=1)
+
+            ber_res_list = []
+            ber_norm_list = []
+
+    
+            for epoch in range(epochs):
+       
+                mlp_res.partial_fit(X_train_res, y_train_res)
+                mlp_norm.partial_fit(X_train_norm, y_train_norm)
+                
+     
+                ber_r = BER_resnet(X_test_res, y_test_s_res, x_test_s_res, mlp_res)
+                ber_n = BER_normal(X_test_norm, y_test_norm, mlp_norm)
+                
+                ber_res_list.append(ber_r)
+                ber_norm_list.append(ber_n)
+
+     
+            plt.figure(figsize=(8, 5))
+            plt.plot(ber_res_list, label=f'ResNet (n={n_sym}, neu={neurons})')
+            plt.plot(ber_norm_list, label=f'Normal (n={n_sym}, neu={neurons})', linestyle='--')
+            plt.yscale('log')
+            plt.title(f'Convergência BER - DBM {dbm}')
+            plt.xlabel('Época')
+            plt.ylabel('BER')
+            plt.legend()
+            plt.grid(True, which='both', alpha=0.3)
+            
+
+            filename = f"BER_DBM{dbm}_nsym{n_sym}_neu{neurons}.pdf"
+            plt.savefig(filename, format='pdf', bbox_inches='tight')
+            plt.close() 
+
+print("\nProcessamento concluído")
