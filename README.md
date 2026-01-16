@@ -9,7 +9,7 @@ This project evaluates the performance of Machine Learning (ML) architectures—
 The input signal consists of four channels ($XI, XQ, YI, YQ$) representing dual-polarization in-phase and quadrature components. A sliding window mechanism of size $n_{sym}$ is implemented to capture temporal dependencies and inter-symbol interference (ISI).
 
 * **Direct Mapping:** The model is trained to map the noisy received sequence directly to the transmitted symbols.
-* **Residual Mapping (ResNet):** The model is trained to predict the residual noise (the difference between the transmitted symbol and the center of the received window). The final estimation is obtained by $Y_{hat} = X_{center} + \text{Residual}_{predicted}$.
+* **Residual Mapping (ResNet):** The model is trained to predict the residual noise (the difference between the transmitted symbol and the center of the received window). The final estimation is obtained by $Y_{hat} = X_{center} + Y_{Residualpredicted}$.
 
 ### 2. Experimental Scenarios
 The system performs an automated grid search across the following hyperparameter space:
