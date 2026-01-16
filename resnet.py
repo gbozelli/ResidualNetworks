@@ -592,3 +592,78 @@ for dbm in dbm_list:
             plt.close() 
 
 print("\nProcessamento concluído")
+
+#WIP: Use of tensorflow to create resnets with windowing and normalization
+
+import tensorflow as tf
+from tensorflow.keras import layers
+
+class WindowingLayer(layers.Layer):
+    def __init__(self, n_window, **kwargs):
+        super().__init__(**kwargs)
+        self.n_window = n_window
+
+    def call(self, inputs):
+        # inputs shape: (Batch, Time, Features)
+        
+        # 1. Create windows: (Batch, Num_Windows, Window_Size, Features)
+        # Num_Windows = Time - n_window + 1
+        windows = tf.signal.frame(inputs, frame_length=self.n_window, frame_step=1, axis=1)
+        
+        shape = tf.shape(windows)
+        batch_size = shape[0]
+        num_windows = shape[1]
+        
+        # 2. Reshape to (Batch, Num_Windows, Window_Size * Features)
+        # This keeps [F0, F1, F2, F3] of first step, then [F0, F1, F2, F3] of second step...
+        output = tf.reshape(windows, (batch_size, num_windows, self.n_window * inputs.shape[-1]))
+        
+        # 3. Flatten the Time/Batch dimension if you want (Batch, 4*n) 
+        # but usually Keras layers keep (Batch, Time, Features)
+        # If your model expects a single vector per sample, we take the last valid window:
+        return output[:, -1, :] 
+        
+
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], input_shape[1] - self.n_window + 1, input_shape[2] * self.n_window)
+
+def prepare_data(x, y, n):
+  x_mult = []
+  n_elem = len(x[0])-n
+  y = y[:,int(n/2):n_elem+int(n/2)]
+  return np.array(y)
+
+x = np.array(real_data_120[8]) 
+y = np.array(exp_data_120[8])
+y = prepare_data(x,y,3)
+
+scaler = preprocessing.StandardScaler()
+
+x = scaler.fit_transform(x.T)
+y = y.T
+
+print('x:', np.shape(x))
+print('y:', np.shape(y))
+
+split_idx = 180000
+X_train, X_test = x[:split_idx], x[split_idx:]
+y_train, y_test = y[:split_idx], y[split_idx:]
+
+inputs = layers.Input(shape=(4,))
+windowing = WindowingLayer(3)(inputs)
+mlp_layer = layers.Dense(64, activation='relu')(windowing)
+mlp_output = layers.Dense(4, activation='linear')(mlp_layer)
+outputs = layers.Add()([mlp_output, inputs])
+model = Model(inputs=inputs, outputs=outputs, name="Simple_ResNet_Windowing_MLP")
+
+# Display the architecture
+model.summary()
+
+model.compile(optimizer='adam', loss='mse')
+
+
+model.fit(X_train, y_train, epochs=5)
+
+print("Calculating BER...")
+
+print(BER(X_test, y_test, model))
