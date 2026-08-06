@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: ResidualNetworks
+Version: 0.1.0
+Summary: Residual network examples for optical communication constellations and NSGA2 optimization.
+Requires-Python: >=3.12
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: matplotlib
+Requires-Dist: scikit-learn
+Requires-Dist: tensorflow
+Requires-Dist: pymoo
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
