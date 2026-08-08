@@ -30,22 +30,28 @@ except ImportError:
 
 
 def build_resnet_model(input_dim: int, hidden_layers=(128, 64)) -> Model:
+    """Cria um modelo MLP com conexão residual (ResNet simples)."""
     inputs = layers.Input(shape=(input_dim,))
     x = inputs
     for units in hidden_layers:
         x = layers.Dense(units, activation='relu')(x)
+
+    # A saída residual tem 4 valores, correspondendo ao sinal dual-polarization.
     residual = layers.Dense(4, activation='linear')(x)
     if input_dim != 4:
+        # Se a entrada não tiver 4 componentes, projeta-se a entrada para 4.
         x_proj = layers.Dense(4, activation='linear')(inputs)
         outputs = layers.Add()([residual, x_proj])
     else:
         outputs = layers.Add()([residual, inputs])
+
     model = Model(inputs=inputs, outputs=outputs, name='ResNetMLP')
     model.compile(optimizer='adam', loss='mse')
     return model
 
 
 def model_flops(input_dim: int, hidden_layers: Tuple[int, ...]) -> float:
+    """Calcula uma estimativa simples do número de operações do modelo (FLOPs)."""
     layers_sizes = [input_dim] + list(hidden_layers) + [4]
     flops = 0
     for i in range(len(layers_sizes) - 1):
@@ -59,7 +65,10 @@ def prepare_resnet_training(
     n_sym: int = 3,
     train_ratio: float = 0.8,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Prepara os dados de treino do modelo ResNet a partir da sequência real e ideal."""
     x_center, x_window, y_center = window_sequence(real_signal, ideal_signal, n_sym)
+
+    # O modelo aprende o resíduo entre o símbolo ideal e o símbolo central.
     y_residual = (y_center - x_center).T
     X = x_window.T
     y = y_residual
@@ -76,6 +85,7 @@ def objective_resnet(
     n_sym: int = 3,
     max_epochs: int = 20,
 ) -> float:
+    """Avalia um conjunto de parâmetros de rede ResNet retornando a BER do modelo."""
     x_train, x_test, y_train, y_test, _, x_center = prepare_resnet_training(
         real_signal, ideal_signal, n_sym=n_sym
     )
@@ -109,6 +119,7 @@ def execute_nsga2(
             super().__init__(vars=variables, n_obj=2)
 
         def _evaluate(self, X, out, *args, **kwargs):
+            """Avalia cada indivíduo na população do NSGA2."""
             F = np.zeros((len(X), 2))
             for i, individual in enumerate(X):
                 n_sym = int(individual['n_sym'])
@@ -122,6 +133,7 @@ def execute_nsga2(
                 try:
                     ber = objective_resnet(real_signal, ideal_signal, hidden_layers, n_sym)
                 except Exception:
+                    # Em caso de falha no modelo, usamos BER alta para descartar a solução.
                     ber = 1.0
                 flops = model_flops(4 * n_sym, hidden_layers)
                 F[i, :] = [ber, flops]

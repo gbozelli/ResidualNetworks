@@ -1,6 +1,6 @@
 import os
 from glob import glob
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -8,10 +8,17 @@ from matplotlib import pyplot as plt
 
 
 def load_csv_matrix(path: str, sep: str = ',', skiprows: int = 0) -> np.ndarray:
-    """Load a CSV file and transpose it into channel-first format."""
+    """Carrega um arquivo CSV e retorna os dados em formato polarization-first.
+
+    O formato channel-first deixa os canais nas linhas e as amostras nas colunas.
+    """
     if not os.path.isfile(path):
-        raise FileNotFoundError(f"Data file not found: {path}")
+        raise FileNotFoundError(f"Arquivo de dados não encontrado: {path}")
+
+    # Lê o CSV em uma matriz NumPy.
     data = pd.read_csv(path, sep=sep, skiprows=skiprows).values
+
+    # Transpõe os dados para que cada linha represente uma polarização.
     return np.transpose(data)
 
 
@@ -22,7 +29,7 @@ def load_dp_constellations(
     suffix: str = '.csv',
     skiprows: int = 5,
 ) -> np.ndarray:
-    """Load a series of dual-polarization constellation diagrams."""
+    """Carrega vários arquivos de constelação dual-polarization para diferentes níveis de potência."""
     samples = []
     for dbm in dbm_values:
         path = os.path.join(directory, f"{prefix}{dbm}{suffix}")
@@ -45,10 +52,10 @@ def load_dual_polarization_dataset(
     suffix: str = '.csv',
     skiprows: int = 5,
 ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
-    """Load real and optional ideal constellation datasets.
+    """Carrega dados reais e opcionais de constelação ideal.
 
-    The real dataset is expected to use the convention:
-    DP_RealConstellationDiagram_{dbm}dbm[_{distance}].csv.
+    O conjunto real segue a convenção:
+    DP_RealConstellationDiagram_{dbm}dbm[_{distance}].csv
     """
     if dbm_values is None:
         dbm_values = list(range(12))
@@ -59,6 +66,8 @@ def load_dual_polarization_dataset(
         dbm_label = _normalize_dbm_label(dbm)
         primary_path = os.path.join(directory, f"{real_prefix}{dbm_label}{suffix}")
         fallback_path = os.path.join(directory, f"{real_prefix}{dbm}{suffix}")
+
+        # Tenta o caminho com e sem 'dbm' no nome do arquivo.
         if os.path.isfile(primary_path):
             path = primary_path
         elif os.path.isfile(fallback_path):
@@ -71,16 +80,16 @@ def load_dual_polarization_dataset(
 
     if not real_data:
         raise FileNotFoundError(
-            f'No real constellation files found in {directory} using prefix {real_prefix} '
-            f'and dbm values {dbm_values}.'
+            f'Nenhum arquivo de constelação real encontrado em {directory} com prefixo {real_prefix} ' 
+            f'e valores dBm {dbm_values}.'
         )
 
     if missing_dbms:
         import warnings
 
         warnings.warn(
-            f'Missing real constellation files for dBm values: {", ".join(missing_dbms)}. '
-            'Loaded available files only.',
+            f'Arquivos de constelação ausentes para valores dBm: {", ".join(missing_dbms)}. '
+            'Foram carregados apenas os arquivos disponíveis.',
             UserWarning,
         )
 
@@ -93,12 +102,14 @@ def load_dual_polarization_dataset(
 
 
 def split_series(data: np.ndarray, train_ratio: float = 0.8) -> Tuple[np.ndarray, np.ndarray]:
-    """Split time series data into train and test by the last axis."""
+    """Divide os dados de série temporal em treino e teste usando o último eixo."""
     if data.ndim < 2:
-        raise ValueError('Expected data with at least two dimensions')
+        raise ValueError('Esperado dados com pelo menos duas dimensões')
 
     n_samples = data.shape[-1]
     split_index = int(n_samples * train_ratio)
+
+    # Usa fatiamento para separar as amostras de treino e de teste.
     train = data[..., :split_index]
     test = data[..., split_index:]
     return train, test
@@ -111,7 +122,7 @@ def plot_constellation(
     bins: int = 80,
     figsize: Tuple[int, int] = (6, 6),
 ) -> None:
-    """Plot a 2D constellation histogram for one polarization."""
+    """Mostra o diagrama de constelação em um histograma 2D."""
     plt.figure(figsize=figsize)
     plt.hist2d(x, y, bins=bins, cmap='viridis')
     plt.xlabel('In-phase')
@@ -124,6 +135,6 @@ def plot_constellation(
 
 
 def find_constellation_files(directory: str, pattern: str = 'DP_RealConstellationDiagram_*') -> List[str]:
-    """Return sorted paths that match the constellation file pattern."""
+    """Retorna a lista de caminhos que batem com o padrão de arquivos de constelação."""
     paths = sorted(glob(os.path.join(directory, pattern)))
     return paths

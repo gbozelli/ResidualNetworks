@@ -14,25 +14,30 @@ except ImportError:
     from utils import estimated_ber
 
 
+# Níveis de amplitude usados para gerar símbolos 16-QAM.
 QAM_LEVELS = np.array([-1.5, -0.5, 0.5, 1.5], dtype=float)
 
 
 def generate_random_16qam_symbols(n_symbols: int) -> np.ndarray:
-    """Generate random 16-QAM symbols for two polarizations."""
+    """Gera símbolos 16-QAM aleatórios para duas polarizações."""
     x_iq = np.random.choice(QAM_LEVELS, size=(n_symbols, 2))
     y_iq = np.random.choice(QAM_LEVELS, size=(n_symbols, 2))
+
+    # Combina os dados das duas polarizações em uma única matriz.
     return np.hstack([x_iq, y_iq])
 
 
 def add_awgn_noise(symbols: np.ndarray, snr_db: float) -> np.ndarray:
-    """Add additive white Gaussian noise to a signal."""
+    """Adiciona ruído branco gaussiano ao sinal em função da relação sinal-ruído."""
     power = np.mean(symbols ** 2)
     noise_power = power / (10 ** (snr_db / 10))
     noise_std = np.sqrt(noise_power / 2)
+
     return symbols + np.random.normal(scale=noise_std, size=symbols.shape)
 
 
 def load_real_example() -> tuple[np.ndarray, np.ndarray] | None:
+    """Tenta carregar um exemplo real de constelação do diretório data/."""
     data_dir = os.path.join(os.path.dirname(__file__), 'data')
     real_files = find_constellation_files(data_dir, 'DP_RealConstellationDiagram_*.csv')
     ideal_path = os.path.join(data_dir, 'DP_IdealConstellationDiagram_0dbm.csv')
@@ -63,7 +68,10 @@ def load_real_example() -> tuple[np.ndarray, np.ndarray] | None:
 
 
 def train_simple_mlp(x_train: np.ndarray, y_train: np.ndarray) -> tuple[MLPRegressor, StandardScaler]:
+    """Cria e treina um MLP simples usando os dados de treinamento."""
     scaler = StandardScaler()
+
+    # Escala as entradas para média 0 e variância 1.
     x_train_scaled = scaler.fit_transform(x_train)
 
     model = MLPRegressor(
@@ -74,15 +82,18 @@ def train_simple_mlp(x_train: np.ndarray, y_train: np.ndarray) -> tuple[MLPRegre
         random_state=1,
         verbose=False,
     )
+
     model.fit(x_train_scaled, y_train)
     return model, scaler
 
 
 def show_constellation(symbols: np.ndarray, title: str) -> None:
+    """Mostra o diagrama de constelação usando apenas os dois primeiros componentes do sinal."""
     plot_constellation(symbols[:, 0], symbols[:, 1], title=title)
 
 
 def run_synthetic_example() -> None:
+    """Executa um exemplo sintético de 16-QAM com ruído e estima o BER."""
     print('Executando exemplo sintético de 16-QAM...')
     symbols = generate_random_16qam_symbols(2000)
     noisy_symbols = add_awgn_noise(symbols, snr_db=12)
@@ -101,7 +112,10 @@ def run_synthetic_example() -> None:
 
 
 def run_real_example(x: np.ndarray, y: np.ndarray) -> None:
+    """Executa o exemplo usando dados reais de constelação carregados do arquivo."""
     print('Executando exemplo com dados reais de constelação...')
+
+    # Usa apenas as primeiras 2000 amostras para não deixar a execução muito pesada.
     x = x[:2000, :]
     y = y[:2000, :]
 
@@ -119,6 +133,7 @@ def run_real_example(x: np.ndarray, y: np.ndarray) -> None:
 
 
 def main() -> None:
+    """Função principal que escolhe entre dados reais ou exemplo sintético."""
     print('Tutorial didático: exemplo de 16-QAM, MLP direto e BER.')
     real_data = load_real_example()
     if real_data is not None:

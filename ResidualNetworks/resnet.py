@@ -1,17 +1,17 @@
-# importação das bibliotecas necessárias
+# Importação das bibliotecas necessárias para processamento de dados e modelos.
 
 import numpy as np
-import pandas as pd #leitura dos dados
-from matplotlib import pyplot as plt #plotagem dos gráficos
-from sklearn import preprocessing #pre-processamento dos dados
-from sklearn import neural_network #importação da rede neural
-from sklearn.metrics import mean_squared_error as loss #importação da função de perda
-import pickle
-import time
-from sklearn.utils import shuffle
+import pandas as pd  # Leitura de arquivos CSV e manipulação de tabelas
+from matplotlib import pyplot as plt  # Plotagem de gráficos e resultados
+from sklearn import preprocessing  # Funções de pré-processamento de dados
+from sklearn import neural_network  # Rede neural MLP do scikit-learn
+from sklearn.metrics import mean_squared_error as loss  # Função de perda para regressão
+import pickle  # Salvamento e carregamento de modelos
+import time  # Medição de tempo de execução
+from sklearn.utils import shuffle  # Embaralhamento de dados
 
-#matrizes de dados. Os números correspondem à distância de transmissão, 'real' corresponde
-#aos dados recebidos e 'exp' aos dados desejados
+# Inicializa listas vazias para armazenar dados de diferentes distâncias.
+# 'real' guarda os dados recebidos, 'exp' guarda os dados desejados (ideal).
 real_data_135, real_data_175, exp_data_135, exp_data_175 = [], [], [], []
 real_data_120 = []
 exp_data_120 = []
@@ -87,19 +87,25 @@ for i in range(16):
   exp_data_175.append([exp_175km[0], exp_175km[1], exp_175km[2], exp_175km[3]])
 
 def split(data, n):
-  #separa os dados para treino e para teste
+  # Separa os dados em parte de treino e parte de teste.
+  # Transpõe para que o corte seja feito por amostra, não por canal.
   t_data = np.transpose(data)
   train, test = t_data[0:n], t_data[n:]
   train, test = np.transpose(train), np.transpose(test)
   return train, test
 
-n_1 = int(0.8*262143)
-n_2 = int(0.8*262138)
+# Define os índices de corte com base em 80% dos dados.
+n_1 = int(0.8 * 262143)
+n_2 = int(0.8 * 262138)
+
+# Carrega alguns conjuntos de dados de 150 km para exemplo.
 real_data_150_10dbm = np.transpose(pd.read_csv('data/DP_RealConstellationDiagram_10dbm_150km_14e9Bd.csv', sep=',', skiprows=5).values.tolist())
 real_data_150_9dbm = np.transpose(pd.read_csv('data/DP_RealConstellationDiagram_9dbm_150km_14e9Bd.csv', sep=',', skiprows=5).values.tolist())
 real_data_150_8dbm = np.transpose(pd.read_csv('data/DP_RealConstellationDiagram_8dbm_150km_14e9Bd.csv', sep=',', skiprows=5).values.tolist())
 real_data_150_7dbm = np.transpose(pd.read_csv('data/DP_RealConstellationDiagram_7dbm_150km_14e9Bd.csv', sep=',', skiprows=5).values.tolist())
 real_data_150 = np.array([real_data_150_10dbm, real_data_150_9dbm, real_data_150_8dbm, real_data_150_7dbm])
+
+# Divide os dados principais de 175km, 135km, 120km e 135km em treino/teste.
 x_train_175km, x_test_175km = split(real_data_175, n_1)
 y_train_175km, y_test_175km = split(exp_data_175, n_1)
 x_train_135km, x_test_135km = split(real_data_135, n_2)
@@ -108,21 +114,24 @@ y_train_120km, y_test_120km = split(exp_data_120, n_1)
 y_train_135km, y_test_135km = split(exp_data_135, n_2)
 
 def BER(X_test, Y_test, clf):
+  """Calcula a taxa de erro de bits (BER) para um classificador que prevê símbolos."""
   Y_test_hat = clf.predict(X_test)
+
+  # Converte os símbolos verdadeiros em índices inteiros.
   aux = 4*np.clip(np.round((Y_test[:,0]-1)/2)+2,0,3)+np.clip(np.round((Y_test[:,1]-1)/2)+2,0,3)
   sym_X_test = aux.astype(int)
-  # Y polarization
+  # Polarização Y real.
   aux = 4*np.clip(np.round((Y_test[:,2]-1)/2)+2,0,3)+np.clip(np.round((Y_test[:,3]-1)/2)+2,0,3)
   sym_Y_test = aux.astype(int)
-  # Detection of the real symbols with multiple symbol
-  # X polarization
+
+  # Converte os símbolos previstos em índices inteiros.
   aux = 4*np.clip(np.round((Y_test_hat[:,0]-1)/2)+2,0,3)+np.clip(np.round((Y_test_hat[:,1]-1)/2)+2,0,3)
   sym_X_test_Multisym = aux.astype(int)
-  # Y polarization
   aux = 4*np.clip(np.round((Y_test_hat[:,2]-1)/2)+2,0,3)+np.clip(np.round((Y_test_hat[:,3]-1)/2)+2,0,3)
   sym_Y_test_Multisym = aux.astype(int)
-  # Corrected to calculate BER instead of SER
-  BER = (sum(sym_X_test!=sym_X_test_Multisym)/len(sym_X_test)+sum(sym_Y_test!=sym_Y_test_Multisym)/len(sym_Y_test))/8
+
+  # Calcula BER somando os erros em ambas polarizações e dividindo pelo total de bits.
+  BER = (sum(sym_X_test != sym_X_test_Multisym) / len(sym_X_test) + sum(sym_Y_test != sym_Y_test_Multisym) / len(sym_Y_test)) / 8
   return BER
 
 import math
@@ -169,18 +178,22 @@ import numpy as np
 from tensorflow.keras import layers, Model
 from sklearn import preprocessing
 
+# Seleciona os dados de 120 km no índice 8. Estes dados contêm as quatro componentes do sinal dual-polarization.
 x = np.array(real_data_120[8]) 
 y = np.array(exp_data_120[8])
 
+# Normaliza os sinais para que cada coluna tenha média 0 e variância 1.
 scaler = preprocessing.StandardScaler()
 
 x = scaler.fit_transform(x.T)
 y = scaler.transform(y.T)
 
+# Usa apenas um corte fixo para treino e teste.
 split_idx = 180000
 X_train, X_test = x[:split_idx], x[split_idx:]
 y_train, y_test = y[:split_idx], y[split_idx:]
 
+# Define um modelo MLP simples com uma camada oculta de 64 neurônios.
 inputs = layers.Input(shape=(4,)) 
 mlp_layer = layers.Dense(64, activation='relu')(inputs) 
 mlp_output = layers.Dense(4, activation='linear')(mlp_layer)
@@ -188,13 +201,15 @@ mlp_output = layers.Dense(4, activation='linear')(mlp_layer)
 model = Model(inputs=inputs, outputs=mlp_output, name="Simple_MLP")
 model.compile(optimizer='adam', loss='mse')
 
-
+# Treina o modelo no conjunto de treino.
 model.fit(X_train, y_train, epochs=5)
 
-print("Calculating BER...")
+print("Calculando BER...")
 
+# Avalia o modelo usando a função BER definida acima.
 print(BER(X_test, y_test, model))
 
+# Exemplo de criação de um modelo tipo ResNet simples com camada de atalho.
 inputs = layers.Input(shape=(None,), batch_size=4)
 windowing = WindowingLayer(n=11)(inputs)
 mlp_layer = layers.Dense(64, activation='relu')(windowing)
